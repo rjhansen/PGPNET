@@ -183,5 +183,4 @@ def update_pgprules():
 
 
 if __name__ == '__main__':
-    setup_logging()
     update_pgprules()
