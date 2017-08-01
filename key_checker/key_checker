@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+# coding: UTF-8
+
+# Copyright © 2017, Robert J. Hansen.
+#
+# Permission to use, copy, modify, and/or distribute this software
+# for any purpose with or without fee is hereby granted, provided
+# that the above copyright notice and this permission notice appear
+# in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+# WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+# AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
+# NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+# CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+"Checks PGPNET keys for conformance to minimal standards."
+
+import logging
+import subprocess
+import re
+from sys import exit as sysexit
+from os import environ, sep
+
+GPGPATH = "/usr/local/bin/gpg"
+PREF_RE = re.compile(r"^(([SHZ]\d+)?(\s[SHZ]\d+)*)")
+
+def setup_logging():
+    "Initialize logging for the app."
+    formatstr = '%(name)-6s: %(levelname)-8s %(message)s'
+    logfile = environ["HOME"] + sep + "key_checker.log"
+    logging.basicConfig(level=logging.INFO,
+                        format=formatstr,
+                        datefmt='%m-%d %H:%M',
+                        filename=logfile)
+    console = logging.StreamHandler()
+    console.setFormatter(logging.Formatter(formatstr))
+    logging.getLogger('').addHandler(console)
+
+
+setup_logging()
+del setup_logging
+
+try:
+    from gpg import Context, Data
+except ImportError:
+    logging.fatal("gpg module not installed")
+    sysexit(1)
+
+try:
+    import requests
+except ImportError:
+    logging.fatal("requests module not installed")
+    sysexit(1)
+
+
+def update_keys():
+    """Updates a user's GnuPG public keyring."""
+    logging.info("retrieving public keys")
+    url = "s/bhpqzxcht527ruu/PGPNET.asc?dl=1"
+    req = requests.get("https://www.dropbox.com/" + url)
+    if req.status_code != 200:
+        logging.fatal("error %d returned", req.status_code)
+        sysexit(1)
+    logging.info("importing into GnuPG")
+    try:
+        with Context() as ctx:
+            with Data(string=req.text) as data:
+                ctx.op_import(data)
+        logging.info("keys updated okay")
+    except:
+        logging.fatal("unknown error while importing")
+        sysexit(1)
+
+
+def get_member_keyids():
+    """Fetches the key IDs of PGPNET members."""
+    logging.info("retrieving public key ids")
+    groupline = "^group pgpnet@yahoogroups.com=.*$"
+    keyid_re = "^0x[A-Fa-f0-9]{16}$"
+    url = "s/j754hlknhot9sk8/Group%20Line.txt?dl=1"
+    req = requests.get("https://www.dropbox.com/" + url)
+    if req.status_code != 200:
+        logging.fatal("error %d returned", req.status_code)
+        sysexit(1)
+    lines = [X.strip() for X in req.text.split("\n")]
+    for line in [X for X in lines if re.match(groupline, X)]:
+        splits = line.strip().split("=")[1].split(" ")
+        keyids = [X for X in splits if re.match(keyid_re, X)]
+        logging.info("found %d key ids", len(keyids))
+        return keyids
+    logging.fatal("could not find key ids")
+    sysexit(1)
+
+def check_subkeys(rows):
+    "Ensures asymmetric algorithm lengths meet minimum standards"
+    for row in rows:
+        col = row.split(":")
+        size = int(col[2])
+        algo = int(col[3])
+        if (algo in [1, 2, 3, 16, 17] and size < 2048) or\
+        (algo in [18, 19, 22] and size < 128):
+            return False
+    return True
+
+def check_uids(rows):
+    "Ensures key prefs meet minimum standards"
+    for row in rows:
+        col = row.split(":")
+        prefs = col[12]
+        match = PREF_RE.match(prefs)
+        if not match:
+            logging.fatal("bug in check_uids")
+            sysexit(1)
+        cipher_prefs = []
+        digest_prefs = []
+        for component in match.group(1).split():
+            if component[0] == 'S':
+                cipher_prefs.append(component)
+            elif component[0] == 'H':
+                digest_prefs.append(component)
+        # check if 3DES/SHA1 are out of tail position
+        if ("S2" in cipher_prefs[:-1] or "H2" in digest_prefs[:-1]) or\
+        ("S9" not in cipher_prefs[:3] or "H8" not in digest_prefs[:3]):
+            return False
+    return True
+
+def check_keys():
+    "Launches the whole smorgasboard"
+    update_keys()
+    bad_keyids = []
+    for keyid in get_member_keyids():
+        args = [GPGPATH, "--no-tty", "--batch", "--quiet", "--with-colons",
+                "--fixed-list-mode", "--edit-key", keyid, "showpref", "quit"]
+        result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = result.stdout.decode("UTF-8").split("\n")
+        uid_rows = [X for X in output if re.match("^uid:[^r]", X)]
+        subkey_rows = [X for X in output if re.match("^(sec|pub|ssb|sub)", X)]
+        good_subkeys = check_subkeys(subkey_rows)
+        good_prefs = check_uids(uid_rows)
+
+        if not (good_subkeys and good_prefs):
+            bad_keyids.append(keyid)
+
+    if bad_keyids:
+        print("\n\n\nPotentially-bad certificates:")
+        with Context() as ctx:
+            for keyid in bad_keyids:
+                key = ctx.get_key(keyid)
+                print("\t{} {}".format(keyid, key.uids[0].name))
+        print("\n\n")
+
+
+if __name__ == '__main__':
+    check_keys()
