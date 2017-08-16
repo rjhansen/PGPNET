@@ -127,6 +127,7 @@ def update_keys():
         logging.info("keys updated okay")
     except:
         logging.fatal("unknown error while importing")
+        sysexit(1)
 
 
 def get_member_keyids():

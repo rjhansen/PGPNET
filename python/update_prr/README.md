@@ -17,4 +17,4 @@ Both `requests` and `gpg` may be installed from Python's `pip` tool.  Using Home
 
 ## Error handling
 
-Informational messages are printed to a log file in the same directory you run `update_prr` from, as well as to the console.
+Informational messages are printed to the screen and written to a log file, `update_prr.log`, in your home directory.
