@@ -1,0 +1,14 @@
+﻿<Properties StartupConfiguration="{78C93C8F-CCB0-4C4B-A68A-189B24A099B2}|Default">
+  <MonoDevelop.Ide.Workbench ActiveDocument="UpdatePRR/Program.cs">
+    <Files>
+      <File FileName="UpdatePRR/Program.cs" Line="25" Column="20" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Release|x86" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.ItemProperties.UpdatePRR PreferredExecutionTarget="MonoDevelop.Default" />
+  <MultiItemStartupConfigurations />
+</Properties>

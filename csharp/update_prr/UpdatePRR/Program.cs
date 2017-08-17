@@ -22,7 +22,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.CommandLineUtils;
 
-namespace UpdatePGPRules
+namespace UpdatePRR
 {
 	class Program
 	{
