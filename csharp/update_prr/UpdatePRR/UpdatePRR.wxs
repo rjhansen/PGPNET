@@ -4,22 +4,23 @@
       <Package Id='*' Keywords='Installer' Description="Update Per Recipient Rules Installer" Manufacturer='Robert Hansen' InstallerVersion='100' Languages='1033' Compressed='yes' SummaryCodepage='1252' />
       <Media Id='1' Cabinet='UpdatePRR.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
       <Property Id='DiskPrompt' Value="Update Per Recipient Rules Disk 1" />
+
       <Directory Id='TARGETDIR' Name='SourceDir'>
 
         <Directory Id='ProgramFilesFolder' Name='PFiles'>
           <Directory Id='HansenEngineering' Name='Hansen Engineering'>
             <Directory Id='INSTALLDIR' Name='UpdatePRR'>
               <Component Id='MainExecutable' Guid='*'>
-                <File Id='UpdatePRR' Name='UpdatePRR.exe' DiskId='1' Source='UpdatePGPRules.exe' KeyPath='yes'>
+                <File Id='UpdatePRR' Name='UpdatePRR.exe' DiskId='1' Source='bin\Release\UpdatePRR.exe' KeyPath='yes'>
                   <Shortcut Id="startmenuUpdatePRR" Directory="ProgramMenuDir" Name="Update Per Recipient Rules" WorkingDirectory='INSTALLDIR' Icon="UpdatePRR.exe" IconIndex="0" Advertise="yes" />
                   <Shortcut Id="desktopUpdatePRR" Directory="DesktopFolder" Name="Update Per Recipient Rules" WorkingDirectory='INSTALLDIR' Icon="UpdatePRR.exe" IconIndex="0" Advertise="yes" />
                 </File>
               </Component>
               <Component Id="MECLUxml" Guid='*'>
-                <File Id='xml' Name='Microsoft.Extensions.CommandLineUtils.xml' DiskId='1' Source='Microsoft.Extensions.CommandLineUtils.xml'/>
+                <File Id='xml' Name='Microsoft.Extensions.CommandLineUtils.xml' DiskId='1' Source='bin\Release\Microsoft.Extensions.CommandLineUtils.xml'/>
               </Component>
               <Component Id="MECLUdll" Guid='*'>
-                <File Id='dll' Name='Microsoft.Extensions.CommandLineUtils.dll' DiskId='1' Source='Microsoft.Extensions.CommandLineUtils.dll'/>
+                <File Id='dll' Name='Microsoft.Extensions.CommandLineUtils.dll' DiskId='1' Source='bin\Release\Microsoft.Extensions.CommandLineUtils.dll'/>
               </Component>
             </Directory>
           </Directory>
@@ -47,6 +48,7 @@
       </Feature>
 
       <UIRef Id="WixUI_Mondo" />
-      <Icon Id="UpdatePRR.exe" SourceFile="UpdatePGPRules.exe" />
+      <WixVariable Id="WixUILicenseRtf" Value="ISC License.rtf" />
+      <Icon Id="UpdatePRR.exe" SourceFile="bin/Release/UpdatePRR.exe" />
     </Product>
   </Wix>
