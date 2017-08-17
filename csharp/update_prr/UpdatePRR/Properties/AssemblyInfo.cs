@@ -5,11 +5,11 @@ using System.Runtime.CompilerServices;
 // Change them to the values specific to your project.
 
 [assembly: AssemblyTitle("UpdatePRR")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("Updates Enigmail per-recipient rules for PGPNET")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Hansen Engineering")]
 [assembly: AssemblyProduct("")]
-[assembly: AssemblyCopyright("${AuthorCopyright}")]
+[assembly: AssemblyCopyright("(c) 2017, Robert Hansen")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
