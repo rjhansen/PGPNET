@@ -1,0 +1,48 @@
+﻿<Window x:Class="PGPNET_Setup.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PGPNET_Setup"
+        mc:Ignorable="d"
+        SizeToContent="WidthAndHeight"
+        Title="PGPNET Setup">
+    <StackPanel Orientation="Vertical">
+        <Menu>
+            <MenuItem Header="File">
+                <MenuItem x:Name="fileQuit" Header="Quit" Click="fileQuit_Click" />
+            </MenuItem>
+            <MenuItem Header="Help">
+                <MenuItem x:Name="helpPGPNET" Header="PGPNET on Yahoo! Groups" Click="helpPGPNET_Click" />
+                <MenuItem x:Name="helpAbout" Header="About PGPNET Setup" Click="helpAbout_Click" />
+            </MenuItem>
+        </Menu>
+        <Grid Margin="15 15 15 0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="auto"/>
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Label Grid.Row="0" Grid.Column="0">Locating GnuPG</Label>
+            <Label Grid.Row="1" Grid.Column="0">Locating Enigmail</Label>
+            <Label Grid.Row="2" Grid.Column="0">Configuring GnuPG</Label>
+            <Label Grid.Row="3" Grid.Column="0">Acquiring PGPNET data</Label>
+            <Label Grid.Row="4" Grid.Column="0">Configuring Enigmail</Label>
+            <ProgressBar x:Name="findingGnuPG" Grid.Row="0" Grid.Column="1" Width="210" Minimum="0" Maximum="1" Value="0"/>
+            <ProgressBar x:Name="findingEnigmail" Grid.Row="1" Grid.Column="1" Width="210" Minimum="0" Maximum="1" Value="0"/>
+            <ProgressBar x:Name="configuringGnuPG" Grid.Row="2" Grid.Column="1" Width="210" Minimum="0" Maximum="1" Value="0"/>
+            <ProgressBar x:Name="acquiringData" Grid.Row="3" Grid.Column="1" Width="210" Minimum="0" Maximum="1" Value="0"/>
+            <ProgressBar x:Name="configuringEnigmail" Grid.Row="4" Grid.Column="1" Width="210" Minimum="0" Maximum="1" Value="0"/>
+        </Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="15 15 15 15">
+            <Button Margin="0 0 5 0" Width="100" Padding="5" x:Name="quitButton" Content="Quit" FontWeight="Normal" Click="quitButton_Click"/>
+            <Button Margin="5 0 0 0" Width="100" Padding="5" x:Name="actionButton" Content="Configure" FontWeight="Bold" Click="actionButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
