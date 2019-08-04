@@ -115,14 +115,14 @@ namespace UpdatePRR
 		static string[] DownloadIDs(string url)
 		{
 			if (url == null)
-				url = "https://www.dropbox.com/s/j754hlknhot9sk8/Group%20Line.txt?dl=1";
+				url = "https://www.dropbox.com/s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1";
 			var wc = new WebClient();
 			Console.Out.Write("Fetching member key IDs from Dropbox… ");
 			Console.Out.Flush();
 			try
 			{
 				var rows = (from d in Encoding.UTF8.GetString(wc.DownloadData(url)).Split('\n')
-							where d.StartsWith("group pgpnet@yahoogroups.com=")
+							where d.StartsWith("group pgpnet@groups.io=")
 							select d).ToArray();
 				if (rows.Length != 1)
 				{
@@ -148,7 +148,7 @@ namespace UpdatePRR
 		static string DownloadKeys(string url)
 		{
 			if (url == null)
-				url = "https://www.dropbox.com/s/bhpqzxcht527ruu/PGPNET.asc?dl=1";
+				url = "https://www.dropbox.com/s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1";
 			var wc = new WebClient();
 			Console.Out.Write("Fetching member keys from Dropbox… ");
 			Console.Out.Flush();
@@ -199,10 +199,10 @@ namespace UpdatePRR
 			XDocument xdoc = XDocument.Load(PGPRulesPath);
 			var newdoc = new XElement("pgpRuleList",
 									  from pgprule in xdoc.Descendants("pgpRule")
-									  where pgprule.Attribute("email").Value != "{pgpnet@yahoogroups.com}"
+									  where pgprule.Attribute("email").Value != "{pgpnet@groups.io}"
 									  select pgprule);
 			var newrule = new XElement("pgpRule");
-			newrule.SetAttributeValue("email", "{pgpnet@yahoogroups.com}");
+			newrule.SetAttributeValue("email", "{pgpnet@groups.io}");
 			newrule.SetAttributeValue("encrypt", 2);
 			newrule.SetAttributeValue("sign", 2);
 			newrule.SetAttributeValue("negateRule", 0);
