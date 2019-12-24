@@ -114,7 +114,7 @@ def find_pgp_rules():
 def update_keys():
     """Updates a user's GnuPG public keyring."""
     logging.info("retrieving public keys")
-    url = "s/bhpqzxcht527ruu/PGPNET.asc?dl=1"
+    url = "s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1"
     req = requests.get("https://www.dropbox.com/" + url)
     if req.status_code != 200:
         logging.fatal("error %d returned", req.status_code)
@@ -133,9 +133,9 @@ def update_keys():
 def get_member_keyids():
     """Fetches the key IDs of PGPNET members."""
     logging.info("retrieving public key ids")
-    groupline = "^group pgpnet@yahoogroups.com=.*$"
+    groupline = "^group pgpnet@groups.io=.*$"
     keyid_re = "^0x[A-Fa-f0-9]{16}$"
-    url = "s/j754hlknhot9sk8/Group%20Line.txt?dl=1"
+    url = "s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1"
     req = requests.get("https://www.dropbox.com/" + url)
     if req.status_code != 200:
         logging.fatal("error %d returned", req.status_code)
@@ -160,11 +160,11 @@ def update_pgprules():
     tree = ET.ElementTree(file=rulefile)
 
     for rule in tree.getroot().findall("pgpRule"):
-        if rule.attrib["email"] == "{pgpnet@yahoogroups.com}":
+        if rule.attrib["email"] == "{pgpnet@groups.io}":
             tree.getroot().remove(rule)
 
     elem = ET.SubElement(tree.getroot(), "pgpRule")
-    elem.attrib["email"] = "{pgpnet@yahoogroups.com}"
+    elem.attrib["email"] = "{pgpnet@groups.io}"
     elem.attrib["keyId"] = ", ".join(get_member_keyids())
     elem.attrib["sign"] = "2"
     elem.attrib["encrypt"] = "2"
