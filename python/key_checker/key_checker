@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: UTF-8
 
-# Copyright © 2017, Robert J. Hansen.
+# Copyright © 2017-9, Robert J. Hansen.
 #
 # Permission to use, copy, modify, and/or distribute this software
 # for any purpose with or without fee is hereby granted, provided
@@ -25,7 +25,7 @@ import re
 from sys import exit as sysexit
 from os import environ, sep
 
-GPGPATH = "/usr/local/bin/gpg"
+GPGPATH = "/usr/bin/gpg"
 PREF_RE = re.compile(r"^(([SHZ]\d+)?(\s[SHZ]\d+)*)")
 
 def setup_logging():
@@ -60,7 +60,7 @@ except ImportError:
 def update_keys():
     """Updates a user's GnuPG public keyring."""
     logging.info("retrieving public keys")
-    url = "s/bhpqzxcht527ruu/PGPNET.asc?dl=1"
+    url = "s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1"
     req = requests.get("https://www.dropbox.com/" + url)
     if req.status_code != 200:
         logging.fatal("error %d returned", req.status_code)
@@ -79,9 +79,9 @@ def update_keys():
 def get_member_keyids():
     """Fetches the key IDs of PGPNET members."""
     logging.info("retrieving public key ids")
-    groupline = "^group pgpnet@yahoogroups.com=.*$"
+    groupline = "^group pgpnet@groups.io=.*$"
     keyid_re = "^0x[A-Fa-f0-9]{16}$"
-    url = "s/j754hlknhot9sk8/Group%20Line.txt?dl=1"
+    url = "s/oys6f4afx5v5wi7/PGPNET_Group_Line%40groups.io.txt?dl=1"
     req = requests.get("https://www.dropbox.com/" + url)
     if req.status_code != 200:
         logging.fatal("error %d returned", req.status_code)
