@@ -1,6 +1,6 @@
-# update_prr
+# update_groupline
 
-This updates keyrings and Enigmail’s per-recipients rule automagically.  Much easier than maintaining them by hand.  Note that you may need to restart Thunderbird to force it to reload the per-recipient rules.
+This updates keyrings and GnuPG’s `gpg.conf` file automagically.  Much easier than maintaining them by hand.
 
 ## Requirements
 
@@ -13,7 +13,7 @@ Both `requests` and `gpg` may be installed from Python's `pip` tool.  Using Home
 
 ## Usage
 
-`update_prr`
+`update_groupline`
 
 ## Error handling
 
