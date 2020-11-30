@@ -19,17 +19,17 @@
 
 """This script will automatically download the latest set of PGPNET
 member keys, import them into your local keyring, and update your
-Enigmail pgprules.xml file with a new per-recipient rule for the
-group."""
+gpg.conf file with a new group line for the group."""
 
-import xml.etree.ElementTree as ET
 import logging
 import platform
 import re
 from sys import exit as sysexit
 from os import environ, walk, sep, access, R_OK, W_OK
 from os.path import isfile, isdir
-from xml.dom.minidom import parseString as md_parseString
+
+
+_CONF_FILE=""
 
 
 def setup_logging():
@@ -61,54 +61,24 @@ except ImportError:
     sysexit(1)
 
 
-def get_profile_dir():
-    """Returns the Thunderbird profile dir."""
-    logging.info("seeking Thunderbird profile dir")
-    profile_dir = None
-    if platform.system() == "Darwin":
-        basedir = environ["HOME"]
-        profile_dir = basedir + "/Library/Thunderbird/Profiles"
-    elif platform.system() == "Linux":
-        basedir = environ["HOME"]
-        for dirname in ["/.thunderbird", "/.mozilla-thunderbird"]:
-            if isdir(basedir + dirname):
-                profile_dir = basedir + dirname
-                break
-    elif platform.system() == "Windows":
-        basedir = environ["APPDATA"]
-        profile_dir = basedir + r"\Thunderbird\Profiles"
+def find_gpg_conf():
+    """Returns the user's gpg.conf file."""
+    global _CONF_FILE
 
-    if profile_dir is not None and isdir(profile_dir):
-        logging.info("found it at %s", profile_dir)
-        return profile_dir
-    else:
-        logging.fatal("could not find Thunderbird profile dir!")
-        sysexit(1)
+    if isfile(_CONF_FILE):
+        return _CONF_FILE
 
+    path = sep.join([environ["HOME"], ".gnupg", "gpg.conf"])
+    logging.info("beginning search for gpg.conf")
 
-def find_pgp_rules():
-    """Returns the user's pgprules.xml file."""
-    paths = []
-    logging.info("beginning search for pgprules.xml")
-
-    for (path, _, files) in walk(get_profile_dir()):
-        if "pgprules.xml" in files:
-            paths.append(path + sep + "pgprules.xml")
-
-    if not paths:
-        logging.fatal("no pgprules.xml found -- aborting")
+    try:
+        with open(path, encoding="UTF-8") as fh:
+            _CONF_FILE = path
+            logging.info("found it")
+            return path
+    except:
+        logging.fatal("could not find gpg.conf!")
         sysexit(1)
-    if len(paths) > 1:
-        logging.fatal("multiple pgprules.xml found -- aborting")
-        sysexit(1)
-    if not isfile(paths[0]):
-        logging.fatal("pgprules.xml is not a file -- aborting")
-        sysexit(1)
-    if not access(paths[0], R_OK | W_OK):
-        logging.fatal("no r/w access to pgprules.xml -- aborting")
-        sysexit(1)
-    logging.info("found at %s", paths[0])
-    return paths[0]
 
 
 def update_keys():
@@ -150,38 +120,21 @@ def get_member_keyids():
     sysexit(1)
 
 
-def update_pgprules():
-    """Updates the Enigmail pgprules.xml file."""
+def update_groupline():
+    """Updates the gpg.conf file."""
     logging.info("beginning update")
-
-    rulefile = find_pgp_rules()
+    regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
     update_keys()
-
-    tree = ET.ElementTree(file=rulefile)
-
-    for rule in tree.getroot().findall("pgpRule"):
-        if rule.attrib["email"] == "{pgpnet@groups.io}":
-            tree.getroot().remove(rule)
-
-    elem = ET.SubElement(tree.getroot(), "pgpRule")
-    elem.attrib["email"] = "{pgpnet@groups.io}"
-    elem.attrib["keyId"] = ", ".join(get_member_keyids())
-    elem.attrib["sign"] = "2"
-    elem.attrib["encrypt"] = "2"
-    elem.attrib["pgpMime"] = "2"
-    elem.attrib["negateRule"] = "0"
-
-    logging.info("writing out pgprules.xml")
-
-    rough_str = ET.tostring(tree.getroot(), encoding="unicode")
-    reparsed = md_parseString(rough_str)
-    pretty_str = reparsed.toprettyxml(indent="  ")
-
-    with open(rulefile, mode="wb") as output:
-        output.write(pretty_str.encode("UTF-8"))
-
-    logging.info("completed run")
+    keyids = get_member_keyids()
+    with open(find_gpg_conf(), encoding="UTF-8") as fh:
+        lines = [X.strip() for X in fh.readlines() if not regex.match(X)]
+    with open(find_gpg_conf(), encoding="UTF-8", mode="w") as fh:
+        for line in lines:
+            print(line, file=fh)
+        print("group pgpnet@groups.io=" + " ".join(keyids), file=fh)
+        print("group <pgpnet@groups.io>=" + " ".join(keyids), file=fh)
+    logging.info("updated gpg.conf")
 
 
 if __name__ == '__main__':
-    update_pgprules()
+    update_groupline()
