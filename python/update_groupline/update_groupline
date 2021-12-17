@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: UTF-8
 
-# Copyright © 2017, Robert J. Hansen.
+# Copyright © 2017-2021, Robert J. Hansen.
 #
 # Permission to use, copy, modify, and/or distribute this software
 # for any purpose with or without fee is hereby granted, provided
@@ -22,119 +22,108 @@ member keys, import them into your local keyring, and update your
 gpg.conf file with a new group line for the group."""
 
 import logging
-import platform
+import json
 import re
 from sys import exit as sysexit
-from os import environ, walk, sep, access, R_OK, W_OK
-from os.path import isfile, isdir
+from os import environ, sep
+from typing import Dict, List
+from pathlib import Path
 
+# Step one: initialize logging.
+logging.basicConfig(level=logging.INFO,
+    format='%(name)-6s: %(levelname)-8s %(message)s',
+    datefmt='%m-%d %H:%M',
+    filename=sep.join([environ["HOME"], "update_prr.log"]))
+console: logging.StreamHandler = logging.StreamHandler()
+console.setFormatter(logging.Formatter(
+    '%(name)-6s: %(levelname)-8s %(message)s'))
+logging.getLogger('').addHandler(console)
+del console
 
-_CONF_FILE=""
-
-
-def setup_logging():
-    "Initialize logging for the app."
-    formatstr = '%(name)-6s: %(levelname)-8s %(message)s'
-    logfile = environ["HOME"] + sep + "update_prr.log"
-    logging.basicConfig(level=logging.INFO,
-                        format=formatstr,
-                        datefmt='%m-%d %H:%M',
-                        filename=logfile)
-    console = logging.StreamHandler()
-    console.setFormatter(logging.Formatter(formatstr))
-    logging.getLogger('').addHandler(console)
-
-
-setup_logging()
-del setup_logging
-
+# Step two: import required nonstandard modules.
 try:
     from gpg import Context, Data
-except ImportError:
-    logging.fatal("gpg module not installed")
-    sysexit(1)
-
-try:
     import requests
 except ImportError:
-    logging.fatal("requests module not installed")
+    logging.fatal("gpg and requests modules must be installed")
     sysexit(1)
 
-
-def find_gpg_conf():
-    """Returns the user's gpg.conf file."""
-    global _CONF_FILE
-
-    if isfile(_CONF_FILE):
-        return _CONF_FILE
-
-    path = sep.join([environ["HOME"], ".gnupg", "gpg.conf"])
-    logging.info("beginning search for gpg.conf")
-
-    try:
-        with open(path, encoding="UTF-8") as fh:
-            _CONF_FILE = path
-            logging.info("found it")
-            return path
-    except:
-        logging.fatal("could not find gpg.conf!")
-        sysexit(1)
-
-
-def update_keys():
-    """Updates a user's GnuPG public keyring."""
-    logging.info("retrieving public keys")
-    url = "s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1"
-    req = requests.get("https://www.dropbox.com/" + url)
-    if req.status_code != 200:
-        logging.fatal("error %d returned", req.status_code)
-        sysexit(1)
-    logging.info("importing into GnuPG")
-    try:
-        with Context() as ctx:
-            with Data(string=req.text) as data:
-                ctx.op_import(data)
-        logging.info("keys updated okay")
-    except:
-        logging.fatal("unknown error while importing")
-        sysexit(1)
-
-
-def get_member_keyids():
-    """Fetches the key IDs of PGPNET members."""
-    logging.info("retrieving public key ids")
-    groupline = "^group pgpnet@groups.io=.*$"
-    keyid_re = "^0x[A-Fa-f0-9]{16}$"
-    url = "s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1"
-    req = requests.get("https://www.dropbox.com/" + url)
-    if req.status_code != 200:
-        logging.fatal("error %d returned", req.status_code)
-        sysexit(1)
-    lines = [X.strip() for X in req.text.split("\n")]
-    for line in [X for X in lines if re.match(groupline, X)]:
-        splits = line.strip().split("=")[1].split(" ")
-        keyids = [X for X in splits if re.match(keyid_re, X)]
-        logging.info("found %d key ids", len(keyids))
-        return keyids
-    logging.fatal("could not find key ids")
+# Step three: find the configuration file.
+_CONF_FILE=""
+logging.info("beginning search for gpg.conf")
+try:
+    with open(sep.join([environ["HOME"], ".gnupg", "gpg.conf"]),
+        encoding="UTF-8") as fh:
+        _CONF_FILE = sep.join([environ["HOME"], ".gnupg", "gpg.conf"])
+        logging.info("found it")
+except:
+    logging.fatal("could not find gpg.conf!")
     sysexit(1)
 
+# Step four: acquire the membership roster.
+_ROSTER: Dict[str, str] = {}
+logging.info("retrieving membership list")
+req: requests.Response = requests.get("https://www.dropbox.com/" + 
+    "s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1")
+if req.status_code != 200:
+    logging.fatal("error %d returned", req.status_code)
+    sysexit(1)
+rx = re.compile(r"^0x([A-Fa-f0-9]{16})\s+(.*)$")
+for (keyid, uid) in [(X.group(1).strip(), X.group(2).strip()) for X in 
+    [rx.match(Y) for Y in req.text.split("\n")]
+    if X]:
+    _ROSTER[keyid] = uid
+del req
+del rx
 
-def update_groupline():
-    """Updates the gpg.conf file."""
-    logging.info("beginning update")
-    regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
-    update_keys()
-    keyids = get_member_keyids()
-    with open(find_gpg_conf(), encoding="UTF-8") as fh:
-        lines = [X.strip() for X in fh.readlines() if not regex.match(X)]
-    with open(find_gpg_conf(), encoding="UTF-8", mode="w") as fh:
-        for line in lines:
-            print(line, file=fh)
-        print("group pgpnet@groups.io=" + " ".join(keyids), file=fh)
-        print("group <pgpnet@groups.io>=" + " ".join(keyids), file=fh)
+# Step five: import certificates
+logging.info("retrieving public keys")
+req: requests.Response = requests.get("https://www.dropbox.com/" +
+    "s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1")
+if req.status_code != 200:
+    logging.fatal("error %d returned", req.status_code)
+    sysexit(1)
+try:
+    with Context() as ctx:
+        with Data(string=req.text) as data:
+            ctx.op_import(data)
+    logging.info("keys updated okay")
+except:
+    logging.fatal("unknown error while importing")
+    sysexit(1)
+del req
+
+# Step six: update group line
+logging.info("beginning update")
+regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
+
+with open(_CONF_FILE, encoding="UTF-8") as fh:
+    lines: List[str] = [X.strip() for X in fh.readlines() if not regex.match(X)]
+with open(_CONF_FILE, encoding="UTF-8", mode="w") as fh:
+    for line in lines:
+        print(line, file=fh)
+    keyids = " ".join(_ROSTER.keys())
+    print(f"group pgpnet@groups.io={keyids}", file=fh)
+    print(f"group <pgpnet@groups.io>={keyids}", file=fh)
     logging.info("updated gpg.conf")
 
+# Step seven: make .tbird directory if it doesn't already exist
+Path(sep.join([environ["HOME"], ".tbird"])).mkdir(parents=True, exist_ok=True)
 
-if __name__ == '__main__':
-    update_groupline()
+# Step eight: write out JSON.
+json_data = {
+    "description" : "Thunderbird OpenPGP Alias Rules",
+    "rules": [
+        {
+            "email": "pgpnet@groups.io",
+            "keys": []
+        }
+    ]
+}
+for keyid in _ROSTER:
+    json_data["rules"][0]["keys"].append(
+        { "description": f"{_ROSTER[keyid]}", "id": f"{keyid}" })
+
+with open(sep.join([environ["HOME"], ".tbird", "aliases.json"]),
+    "w", encoding="UTF-8") as fh:
+    fh.write(json.dumps(json_data, sort_keys=True, indent=4))
