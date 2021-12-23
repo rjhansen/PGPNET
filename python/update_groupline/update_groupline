@@ -18,112 +18,173 @@
 # CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """This script will automatically download the latest set of PGPNET
-member keys, import them into your local keyring, and update your
-gpg.conf file with a new group line for the group."""
+member certificates, drop a copy of the file on your desktop,
+update your gpg.conf file with a new group line for the group, and
+create a proper Thunderbird aliases file in your GnuPG configuration
+directory."""
 
+import tempfile
+import urllib3
 import logging
 import json
 import re
+from shutil import copyfileobj
+from platform import system
 from sys import exit as sysexit
-from os import environ, sep
+from os import environ, getenv
+from os.path import join, exists, isdir, isfile
 from typing import Dict, List
-from pathlib import Path
 
-# Step one: initialize logging.
-logging.basicConfig(level=logging.INFO,
-    format='%(name)-6s: %(levelname)-8s %(message)s',
-    datefmt='%m-%d %H:%M',
-    filename=sep.join([environ["HOME"], "update_prr.log"]))
-console: logging.StreamHandler = logging.StreamHandler()
-console.setFormatter(logging.Formatter(
-    '%(name)-6s: %(levelname)-8s %(message)s'))
-logging.getLogger('').addHandler(console)
-del console
+_DESKTOP_DIR = ""
+_HTTP = urllib3.PoolManager()
+if system() == "Windows":
+    dirname = join(environ["USERPROFILE"], "Desktop")
+    if not (exists(dirname) and isdir(dirname)):
+        dirname = join(environ["USERPROFILE"], "OneDrive", "Desktop")
+    if not (exists(dirname) and isdir(dirname)):
+        print("Could not find desktop directory!")
+        sysexit(1)
+    _DESKTOP_DIR = dirname
+else:
+    _DESKTOP_DIR = environ["HOME"]
 
-# Step two: import required nonstandard modules.
-try:
-    from gpg import Context, Data
-    import requests
-except ImportError:
-    logging.fatal("gpg and requests modules must be installed")
-    sysexit(1)
 
-# Step three: find the configuration file.
-_CONF_FILE=""
-logging.info("beginning search for gpg.conf")
-try:
-    with open(sep.join([environ["HOME"], ".gnupg", "gpg.conf"]),
-        encoding="UTF-8") as fh:
-        _CONF_FILE = sep.join([environ["HOME"], ".gnupg", "gpg.conf"])
-        logging.info("found it")
-except:
-    logging.fatal("could not find gpg.conf!")
-    sysexit(1)
+def initialize_logging():
+    logging.basicConfig(level=logging.INFO,
+                        format='%(name)-6s: %(levelname)-8s %(message)s',
+                        datefmt='%m-%d %H:%M',
+                        filename=join(_DESKTOP_DIR, "update_aliases.log"))
+    console: logging.StreamHandler = logging.StreamHandler()
+    console.setFormatter(logging.Formatter(
+        '%(name)-6s: %(levelname)-8s %(message)s'))
+    logging.getLogger('').addHandler(console)
 
-# Step four: acquire the membership roster.
-_ROSTER: Dict[str, str] = {}
-logging.info("retrieving membership list")
-req: requests.Response = requests.get("https://www.dropbox.com/" + 
-    "s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1")
-if req.status_code != 200:
-    logging.fatal("error %d returned", req.status_code)
-    sysexit(1)
-rx = re.compile(r"^0x([A-Fa-f0-9]{16})\s+(.*)$")
-for (keyid, uid) in [(X.group(1).strip(), X.group(2).strip()) for X in 
-    [rx.match(Y) for Y in req.text.split("\n")]
-    if X]:
-    _ROSTER[keyid] = uid
-del req
-del rx
 
-# Step five: import certificates
-logging.info("retrieving public keys")
-req: requests.Response = requests.get("https://www.dropbox.com/" +
-    "s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1")
-if req.status_code != 200:
-    logging.fatal("error %d returned", req.status_code)
-    sysexit(1)
-try:
-    with Context() as ctx:
-        with Data(string=req.text) as data:
-            ctx.op_import(data)
-    logging.info("keys updated okay")
-except:
-    logging.fatal("unknown error while importing")
-    sysexit(1)
-del req
+def find_config_dir_helper():
+    confDir = [""]
 
-# Step six: update group line
-logging.info("beginning update")
-regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
+    def foo() -> str:
+        if confDir[0] != "":
+            logging.info("returning cached GnuPG config dir")
+            return confDir[0]
+        confDir[0] = join(getenv("APPDATA"), "gnupg") if \
+            system() == "Windows" else join(environ["HOME"], ".gnupg")
+        if exists(confDir[0]) and isdir(confDir[0]):
+            logging.info("found GnuPG config dir")
+        else:
+            logging.info("could not find GnuPG config dir!")
+            sysexit(1)
+        return confDir[0]
 
-with open(_CONF_FILE, encoding="UTF-8") as fh:
-    lines: List[str] = [X.strip() for X in fh.readlines() if not regex.match(X)]
-with open(_CONF_FILE, encoding="UTF-8", mode="w") as fh:
-    for line in lines:
-        print(line, file=fh)
-    keyids = " ".join(_ROSTER.keys())
-    print(f"group pgpnet@groups.io={keyids}", file=fh)
-    print(f"group <pgpnet@groups.io>={keyids}", file=fh)
-    logging.info("updated gpg.conf")
+    return foo
 
-# Step seven: make .tbird directory if it doesn't already exist
-Path(sep.join([environ["HOME"], ".tbird"])).mkdir(parents=True, exist_ok=True)
 
-# Step eight: write out JSON.
-json_data = {
-    "description" : "Thunderbird OpenPGP Alias Rules",
-    "rules": [
-        {
-            "email": "pgpnet@groups.io",
-            "keys": []
-        }
-    ]
-}
-for keyid in _ROSTER:
-    json_data["rules"][0]["keys"].append(
-        { "description": f"{_ROSTER[keyid]}", "id": f"{keyid}" })
+find_config_dir = find_config_dir_helper()
+del find_config_dir_helper
 
-with open(sep.join([environ["HOME"], ".tbird", "aliases.json"]),
-    "w", encoding="UTF-8") as fh:
-    fh.write(json.dumps(json_data, sort_keys=True, indent=4))
+
+def find_config_file_helper():
+    confFile = [""]
+
+    def foo() -> str:
+        if confFile[0] != "":
+            logging.info("returning cached GnuPG config file")
+            return confFile[0]
+
+        confFile[0] = join(find_config_dir(), "gpg.conf")
+        logging.info("beginning search for gpg.conf")
+        try:
+            if exists(confFile[0]) and isfile(confFile[0]):
+                logging.info("found it")
+                return confFile[0]
+            else:
+                logging.info("could not find gpg.conf!")
+                sysexit(1)
+        except:
+            logging.fatal("could not find gpg.conf!")
+            sysexit(1)
+
+    return foo
+
+
+find_config_file = find_config_file_helper()
+del find_config_file_helper
+
+
+def get_roster_helper():
+    roster: Dict[str, str] = {}
+
+    def foo() -> Dict[str, str]:
+        if len(roster) > 0:
+            logging.info("returning cached membership list")
+            return roster
+        logging.info("retrieving membership list")
+        url = "https://dropbox.com/s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1"
+        with tempfile.TemporaryFile() as tfile:
+            with _HTTP.request("GET", url, preload_content=False) as r:
+                copyfileobj(r, tfile)
+            tfile.seek(0)
+            lines = [X.decode("UTF-8") for X in tfile.readlines()]
+        rx = re.compile(r"^0x([A-Fa-f0-9]{16})\s+(.*)$")
+        for (keyid, uid) in [(X.group(1).strip(), X.group(2).strip()) for X in
+                             [rx.match(Y) for Y in lines]
+                             if X]:
+            roster[keyid] = uid
+        return roster
+
+    return foo
+
+
+get_roster = get_roster_helper()
+del get_roster_helper
+
+
+def acquire_certificates():
+    logging.info("retrieving public certificates")
+    url = "https://www.dropbox.com/s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1"
+    with _HTTP.request("GET", url, preload_content=False) as r:
+        with open(join(_DESKTOP_DIR, "PGPNET certificates.asc"), "wb") as out:
+            copyfileobj(r, out)
+    logging.info("certificate file in proper place")
+
+
+def update_gnupg_groupline():
+    logging.info("beginning update")
+    regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
+
+    with open(find_config_file(), encoding="UTF-8") as fh:
+        lines: List[str] = [X.strip() for X in fh.readlines() if not regex.match(X)]
+    with open(find_config_file(), encoding="UTF-8", mode="w") as fh:
+        for line in lines:
+            print(line, file=fh)
+        keyids = " ".join(get_roster().keys())
+        print(f"group pgpnet@groups.io={keyids}", file=fh)
+        print(f"group <pgpnet@groups.io>={keyids}", file=fh)
+        logging.info("updated gpg.conf")
+
+
+def update_thunderbird_alias_file() -> None:
+    json_data = {
+        "description": "Thunderbird OpenPGP Alias Rules",
+        "rules": [
+            {
+                "email": "pgpnet@groups.io",
+                "keys": []
+            }
+        ]
+    }
+    roster = get_roster()
+    for keyid in roster:
+        json_data["rules"][0]["keys"].append(
+            {"description": f"{roster[keyid]}", "id": f"{keyid}"})
+
+    filename = join(find_config_dir(), "thunderbird_aliases.json")
+    with open(filename, "w", encoding="UTF-8") as fh:
+        fh.write(json.dumps(json_data, sort_keys=True, indent=4))
+
+
+if __name__ == '__main__':
+    initialize_logging()
+    acquire_certificates()
+    update_gnupg_groupline()
+    update_thunderbird_alias_file()
