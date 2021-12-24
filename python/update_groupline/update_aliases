@@ -23,56 +23,87 @@ update your gpg.conf file with a new group line for the group, and
 create a proper Thunderbird aliases file in your GnuPG configuration
 directory."""
 
+import subprocess
 import tempfile
 import urllib3
-import logging
 import json
 import re
 from shutil import copyfileobj
 from platform import system
-from sys import exit as sysexit
+from sys import exit as sysexit, maxsize
 from os import environ, getenv
 from os.path import join, exists, isdir, isfile
 from typing import Dict, List
-
-_DESKTOP_DIR = ""
-_HTTP = urllib3.PoolManager()
 if system() == "Windows":
-    dirname = join(environ["USERPROFILE"], "Desktop")
-    if not (exists(dirname) and isdir(dirname)):
-        dirname = join(environ["USERPROFILE"], "OneDrive", "Desktop")
-    if not (exists(dirname) and isdir(dirname)):
-        print("Could not find desktop directory!")
+    import winreg
+
+_HTTP = urllib3.PoolManager()
+
+def find_gnupg_helper():
+    gnupgPath = [""]
+    def foo() -> str:
+        if gnupgPath[0] != "":
+            return gnupgPath[0]
+        if system() == "Windows":
+            mask = winreg.KEY_READ | \
+                   (winreg.KEY_WOW64_32KEY if maxsize > 2**32 else 0)
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\GnuPG",
+                                 0, mask)
+            path = winreg.QueryValueEx(key, "Install Directory")[0]
+            key.Close()
+            gnupgPath[0] = join(path, "bin", "gpg.exe")
+            if exists(gnupgPath[0]) and isfile(gnupgPath[0]):
+                print(f"found GnuPG at {gnupgPath[0]}")
+                return gnupgPath[0]
+            else:
+                print("could not find GnuPG!")
+                sysexit(1)
+        for path in environ["HOME"].split(":"):
+            for filename in ["gpg", "gpg2"]:
+                trypath = join(path, filename)
+                if exists(trypath) and isfile(trypath):
+                    print(f"found GnuPG at {trypath}")
+                    gnupgPath[0] = trypath
+                    return gnupgPath[0]
+        print("could not find GnuPG")
         sysexit(1)
-    _DESKTOP_DIR = dirname
-else:
-    _DESKTOP_DIR = environ["HOME"]
+    return foo
+find_gnupg = find_gnupg_helper()
+del find_gnupg_helper
 
-
-def initialize_logging():
-    logging.basicConfig(level=logging.INFO,
-                        format='%(name)-6s: %(levelname)-8s %(message)s',
-                        datefmt='%m-%d %H:%M',
-                        filename=join(_DESKTOP_DIR, "update_aliases.log"))
-    console: logging.StreamHandler = logging.StreamHandler()
-    console.setFormatter(logging.Formatter(
-        '%(name)-6s: %(levelname)-8s %(message)s'))
-    logging.getLogger('').addHandler(console)
-
+def get_desktop_dir_helper():
+    desktop_dir = [""]
+    def foo() -> str:
+        if desktop_dir[0] != "":
+            return desktop_dir[0]
+        if system() == "Windows":
+            dirname = join(environ["USERPROFILE"], "Desktop")
+            if not (exists(dirname) and isdir(dirname)):
+                dirname = join(environ["USERPROFILE"], "OneDrive", "Desktop")
+            if not (exists(dirname) and isdir(dirname)):
+                print("Could not find desktop directory!")
+                sysexit(1)
+            desktop_dir[0] = dirname
+        else:
+            desktop_dir[0] = environ["HOME"]
+        print(f"found desktop directory at {desktop_dir[0]}")
+        return desktop_dir[0]
+    return foo
+get_desktop_dir = get_desktop_dir_helper()
+del get_desktop_dir_helper
 
 def find_config_dir_helper():
     confDir = [""]
 
     def foo() -> str:
         if confDir[0] != "":
-            logging.info("returning cached GnuPG config dir")
             return confDir[0]
         confDir[0] = join(getenv("APPDATA"), "gnupg") if \
             system() == "Windows" else join(environ["HOME"], ".gnupg")
         if exists(confDir[0]) and isdir(confDir[0]):
-            logging.info("found GnuPG config dir")
+            print("found GnuPG config dir")
         else:
-            logging.info("could not find GnuPG config dir!")
+            print("could not find GnuPG config dir!")
             sysexit(1)
         return confDir[0]
 
@@ -88,20 +119,19 @@ def find_config_file_helper():
 
     def foo() -> str:
         if confFile[0] != "":
-            logging.info("returning cached GnuPG config file")
             return confFile[0]
 
         confFile[0] = join(find_config_dir(), "gpg.conf")
-        logging.info("beginning search for gpg.conf")
+        print("beginning search for gpg.conf")
         try:
             if exists(confFile[0]) and isfile(confFile[0]):
-                logging.info("found it")
+                print("found it")
                 return confFile[0]
             else:
-                logging.info("could not find gpg.conf!")
+                print("could not find gpg.conf!")
                 sysexit(1)
         except:
-            logging.fatal("could not find gpg.conf!")
+            print("could not find gpg.conf!")
             sysexit(1)
 
     return foo
@@ -116,15 +146,14 @@ def get_roster_helper():
 
     def foo() -> Dict[str, str]:
         if len(roster) > 0:
-            logging.info("returning cached membership list")
             return roster
-        logging.info("retrieving membership list")
+        print("retrieving membership list")
         url = "https://dropbox.com/s/9abn35l2xqeqc04/PGPNET%40groups.io.txt?dl=1"
         with tempfile.TemporaryFile() as tfile:
             with _HTTP.request("GET", url, preload_content=False) as r:
                 copyfileobj(r, tfile)
             tfile.seek(0)
-            lines = [X.decode("UTF-8") for X in tfile.readlines()]
+            lines = [X.decode("UTF-8").strip() for X in tfile.readlines()]
         rx = re.compile(r"^0x([A-Fa-f0-9]{16})\s+(.*)$")
         for (keyid, uid) in [(X.group(1).strip(), X.group(2).strip()) for X in
                              [rx.match(Y) for Y in lines]
@@ -140,16 +169,15 @@ del get_roster_helper
 
 
 def acquire_certificates():
-    logging.info("retrieving public certificates")
+    print("retrieving public certificates")
     url = "https://www.dropbox.com/s/2tu23r92h8taock/PGPNET%40groups.io.asc?dl=1"
     with _HTTP.request("GET", url, preload_content=False) as r:
-        with open(join(_DESKTOP_DIR, "PGPNET certificates.asc"), "wb") as out:
+        with open(join(get_desktop_dir(), "PGPNET certificates.asc"), "wb") as out:
             copyfileobj(r, out)
-    logging.info("certificate file in proper place")
+    print("certificate file placed in desktop dir")
 
 
 def update_gnupg_groupline():
-    logging.info("beginning update")
     regex = re.compile(r"^\s*group\s+(<)?pgpnet@groups.io(>)?\s*=.*$")
 
     with open(find_config_file(), encoding="UTF-8") as fh:
@@ -160,7 +188,7 @@ def update_gnupg_groupline():
         keyids = " ".join(get_roster().keys())
         print(f"group pgpnet@groups.io={keyids}", file=fh)
         print(f"group <pgpnet@groups.io>={keyids}", file=fh)
-        logging.info("updated gpg.conf")
+    print("updated gpg.conf")
 
 
 def update_thunderbird_alias_file() -> None:
@@ -181,10 +209,23 @@ def update_thunderbird_alias_file() -> None:
     filename = join(find_config_dir(), "thunderbird_aliases.json")
     with open(filename, "w", encoding="UTF-8") as fh:
         fh.write(json.dumps(json_data, sort_keys=True, indent=4))
+    print("updated Thunderbird's alias file, located in " +
+          join(find_config_dir(), "thunderbird_aliases.json"))
+
+
+def import_certificates_to_gnupg() -> None:
+    certfile = join(get_desktop_dir(), "PGPNET certificates.asc")
+    result = subprocess.run([find_gnupg(), "--import", certfile],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print("GnuPG ran into a problem importing certificates")
+        sysexit(1)
+    else:
+        print("certificates imported into GnuPG successfully")
 
 
 if __name__ == '__main__':
-    initialize_logging()
     acquire_certificates()
+    import_certificates_to_gnupg()
     update_gnupg_groupline()
     update_thunderbird_alias_file()

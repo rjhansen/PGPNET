@@ -1,20 +1,36 @@
-# update_groupline
+# update_aliases
 
-This updates keyrings and GnuPG’s `gpg.conf` file automagically.  Much easier than maintaining them by hand.
+This updates Thunderbird's aliases file, GnuPG keyrings, and GnuPG
+configuration files, all at once for use with PGPNET.
 
 ## Requirements
 
-* Linux, OS X, or macOS only.  (Windows will be supported as soon as the `gpg` module is ported to Windows.)
 * Python 3
-* `requests`
-* `gpg`
+* `urllib3`
+* GnuPG (Windows users _must_ use [GPG4WIN](https://www.gpg4win.org))
+* Thunderbird 78 or later (technically optional, but a good idea)
 
-Both `requests` and `gpg` may be installed from Python's `pip` tool.  Using Homebrew on macOS, for instance, `pip3 install requests` and `pip3 install gpg` will do the trick.
+To install `urllib3`, do something like (on UNIX):
+
+`$ pip3 install urllib3`
+
+Or on Windows,
+
+`> pip install urllib3`
 
 ## Usage
 
-`update_groupline`
+`update_aliases`
 
-## Error handling
+Note that you will need to set Thunderbird's alias file location to a
+`file://` URI.  For instance, my alias file on Windows is:
 
-Informational messages are printed to the screen and written to a log file, `update_prr.log`, in your home directory.
+`file:///C:/Users/rjh/AppData/Roaming/gnupg/thunderbird_aliases.json`
+
+On UNIX it's:
+
+`file:///home/rjh/.gnupg/thunderbird_aliases.json`
+
+On MacOS (untested!) it would probably be,
+
+`file:///Users/rjh/.gnupg/thunderbird_aliases.json`
