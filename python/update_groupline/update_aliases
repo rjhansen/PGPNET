@@ -58,9 +58,10 @@ def find_gnupg_helper():
             else:
                 print("could not find GnuPG!")
                 sysexit(1)
-        for path in environ["HOME"].split(":"):
+        for path in environ["PATH"].split(":"):
             for filename in ["gpg", "gpg2"]:
                 trypath = join(path, filename)
+                print(trypath)
                 if exists(trypath) and isfile(trypath):
                     print(f"found GnuPG at {trypath}")
                     gnupgPath[0] = trypath
